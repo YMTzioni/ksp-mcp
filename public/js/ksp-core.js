@@ -47,22 +47,9 @@
     return `₪${Math.round(price).toLocaleString("en-US")}`;
   }
 
-  function isGitHubPages() {
-    return /github\.io$/i.test(global.location.hostname);
-  }
-
-  function useClientApi() {
-    const cfg = global.__KSP_CONFIG__ || {};
-    if (cfg.mode === "client") return true;
-    if (isGitHubPages()) return true;
-    return false;
-  }
-
   function getCorsProxy() {
     const cfg = global.__KSP_CONFIG__ || {};
-    if (cfg.corsProxy) return cfg.corsProxy;
-    if (isGitHubPages()) return "https://api.allorigins.win/raw?url=";
-    return "";
+    return cfg.corsProxy || "https://api.allorigins.win/raw?url=";
   }
 
   async function kspFetch(apiPath) {
@@ -641,8 +628,8 @@
     if (u.pathname === "/api/health") {
       return {
         status: "ok",
-        name: "ksp-mcp",
-        version: "0.3.0",
+        name: "ksp-deals",
+        version: "1.0.0",
         mode: "client",
         corsProxy: Boolean(getCorsProxy()),
       };
@@ -722,9 +709,5 @@
     throw new Error(`Unknown API: ${u.pathname}`);
   }
 
-  global.KspClient = {
-    api: clientApi,
-    useClientApi,
-    isGitHubPages,
-  };
+  global.KspClient = { api: clientApi };
 })(typeof window !== "undefined" ? window : globalThis);

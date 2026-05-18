@@ -258,7 +258,23 @@ body { padding-bottom: 5rem; }
 
 .api-settings.hidden { display: none; }
 
-footer.hidden { display: none; }
+.site-footer {
+  margin-top: 2rem;
+  padding: 1.25rem 0;
+  border-top: 1px solid var(--border, #e5e7eb);
+  text-align: center;
+  font-size: 0.85rem;
+  color: var(--muted, #6b7280);
+}
+
+.site-footer p { margin: 0.35rem 0; }
+
+.site-footer a {
+  color: var(--primary, #2563eb);
+  text-decoration: none;
+}
+
+.site-footer a:hover { text-decoration: underline; }
 
 .card-actions {
   flex-wrap: wrap;

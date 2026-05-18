@@ -1,18 +1,13 @@
 {
-  "name": "ksp-mcp",
-  "version": "0.1.0",
+  "name": "ksp-deals",
+  "version": "1.0.0",
   "private": true,
+  "description": "אתר חיפוש מבצעים ומחירים ב-KSP.co.il",
   "scripts": {
-    "dev": "wrangler dev",
-    "deploy": "wrangler deploy"
-  },
-  "dependencies": {
-    "@modelcontextprotocol/sdk": "^1.12.1",
-    "agents": "^0.7.6"
+    "dev": "serve public -l 3000",
+    "start": "serve public -l 3000"
   },
   "devDependencies": {
-    "@cloudflare/workers-types": "^4.20250313.0",
-    "typescript": "^5.7.3",
-    "wrangler": "^4.10.0"
+    "serve": "^14.2.4"
   }
 }

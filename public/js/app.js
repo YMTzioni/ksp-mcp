@@ -1,31 +1,4 @@
-/* KSP MCP GUI */
-const STORAGE_API_KEY = "ksp-api-base";
-
-function useClientApi() {
-  return window.KspClient?.useClientApi?.() ?? false;
-}
-
-function isGitHubPages() {
-  return window.KspClient?.isGitHubPages?.() ?? /github\.io$/i.test(window.location.hostname);
-}
-
-function getApiBase() {
-  if (useClientApi()) return "";
-  const cfg = window.__KSP_CONFIG__ || {};
-  const fromCfg = (cfg.apiBase || "").trim().replace(/\/$/, "");
-  if (fromCfg) return fromCfg;
-  const saved = (localStorage.getItem(STORAGE_API_KEY) || "").trim().replace(/\/$/, "");
-  if (saved) return saved;
-  return window.location.origin;
-}
-
-function apiUrl(path) {
-  const base = getApiBase();
-  if (!base) {
-    throw new Error("יש להגדיר כתובת שרת API (Cloudflare Worker) למעלה");
-  }
-  return base + path;
-}
+/* KSP — ממשק אתר */
 
 const state = {
   search: { items: [], query: "", page: 1, hasNext: false, total: 0 },
@@ -43,17 +16,11 @@ function esc(s) {
 }
 
 async function api(path, opts) {
-  if (useClientApi()) {
-    try {
-      return await window.KspClient.api(path, opts);
-    } catch (e) {
-      throw new Error(e.message || "שגיאת API");
-    }
+  try {
+    return await window.KspClient.api(path, opts);
+  } catch (e) {
+    throw new Error(e.message || "שגיאת API");
   }
-  const res = await fetch(apiUrl(path), opts);
-  const data = await res.json().catch(() => ({}));
-  if (!res.ok) throw new Error(data.error || `שגיאה ${res.status}`);
-  return data;
 }
 
 function setLoading(el, msg = "טוען...") {
@@ -675,12 +642,12 @@ async function checkHealth() {
   const dot = document.getElementById("statusDot");
   const text = document.getElementById("statusText");
   try {
-    const h = await api("/api/health");
+    await api("/api/health");
     dot.classList.remove("offline");
-    text.textContent = h.mode === "client" ? "פעיל (דפדפן)" : "שרת פעיל";
+    text.textContent = "מחובר ל-KSP";
   } catch {
     dot.classList.add("offline");
-    text.textContent = useClientApi() ? "בעיית חיבור ל-KSP" : "שרת לא זמין";
+    text.textContent = "בעיית חיבור ל-KSP";
   }
 }
 
@@ -699,36 +666,7 @@ function loadSavedYaniv() {
   } catch {}
 }
 
-function setupApiSettings() {
-  const box = document.getElementById("apiSettings");
-  if (box) box.classList.add("hidden");
-}
-
-function updateApiBadges() {
-  const badge = document.getElementById("baseUrlBadge");
-  const mcpFooter = document.getElementById("mcpFooter");
-  if (useClientApi()) {
-    if (badge) badge.textContent = "GitHub Pages · דפדפן";
-    if (mcpFooter) mcpFooter.classList.add("hidden");
-    return;
-  }
-  if (mcpFooter) mcpFooter.classList.remove("hidden");
-  const base = getApiBase() || "(לא הוגדר)";
-  if (badge) badge.textContent = "API: " + base;
-  const sse = document.getElementById("sseUrl");
-  const mcp = document.getElementById("mcpUrl");
-  if (getApiBase()) {
-    if (sse) sse.textContent = getApiBase() + "/sse";
-    if (mcp) mcp.textContent = getApiBase() + "/mcp";
-  } else {
-    if (sse) sse.textContent = "—";
-    if (mcp) mcp.textContent = "—";
-  }
-}
-
 function init() {
-  setupApiSettings();
-  updateApiBadges();
 
   document.querySelectorAll(".tab").forEach((tab) => {
     tab.addEventListener("click", () => switchTab(tab.dataset.tab));
