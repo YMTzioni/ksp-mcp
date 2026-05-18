@@ -1,15 +1,6 @@
-# Dependencies
-node_modules/
-
-# Cloudflare
-.wrangler/
-.dev.vars
-
-# TypeScript
-dist/
-
 # OS
 .DS_Store
+Thumbs.db
 
 # IDE
 .idea/
