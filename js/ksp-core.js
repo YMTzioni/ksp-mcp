@@ -47,29 +47,76 @@
     return `₪${Math.round(price).toLocaleString("en-US")}`;
   }
 
-  function getCorsProxy() {
+  function getApiProxy() {
     const cfg = global.__KSP_CONFIG__ || {};
-    return cfg.corsProxy || "https://api.allorigins.win/raw?url=";
+    return (cfg.apiProxy || "").trim().replace(/\/$/, "");
   }
 
-  async function kspFetch(apiPath) {
-    const url = `${KSP_API}${apiPath}`;
-    const proxy = getCorsProxy();
-    const finalUrl = proxy ? proxy + encodeURIComponent(url) : url;
-    const headers = proxy
-      ? { Accept: "application/json" }
-      : {
-          Accept: "application/json",
-          "Accept-Language": "he-IL,he;q=0.9,en-US;q=0.8,en;q=0.7",
-          Referer: `${KSP_WEB}/`,
-        };
-    const resp = await fetch(finalUrl, { headers });
+  function parseKspJson(text) {
+    const trimmed = text.trim();
+    if (trimmed.startsWith("<") || trimmed.startsWith("<!")) {
+      throw new Error("KSP חסם את הבקשה (403). נדרש שרת API פעיל.");
+    }
+    try {
+      return JSON.parse(trimmed);
+    } catch {
+      throw new Error("תשובה לא תקינה מ-KSP");
+    }
+  }
+
+  async function readKspResponse(resp) {
     if (!resp.ok) {
-      const err = new Error(`KSP API error: ${resp.status}`);
+      const err = new Error(`שגיאת KSP: ${resp.status}`);
       err.status = resp.status;
       throw err;
     }
-    return resp.json();
+    return parseKspJson(await resp.text());
+  }
+
+  async function kspFetch(apiPath) {
+    const apiProxy = getApiProxy();
+    if (apiProxy) {
+      const resp = await fetch(`${apiProxy}${apiPath}`, {
+        headers: { Accept: "application/json" },
+      });
+      return readKspResponse(resp);
+    }
+
+    const url = `${KSP_API}${apiPath}`;
+    const attempts = [
+      async () => {
+        const r = await fetch(
+          `https://api.allorigins.win/get?url=${encodeURIComponent(url)}`,
+          { headers: { Accept: "application/json" } }
+        );
+        if (!r.ok) throw new Error(`proxy ${r.status}`);
+        const wrap = await r.json();
+        return parseKspJson(wrap.contents || "");
+      },
+      async () => {
+        const r = await fetch(
+          `https://api.allorigins.win/raw?url=${encodeURIComponent(url)}`,
+          { headers: { Accept: "application/json" } }
+        );
+        return readKspResponse(r);
+      },
+    ];
+
+    let lastErr;
+    for (const attempt of attempts) {
+      try {
+        return await attempt();
+      } catch (e) {
+        lastErr = e;
+        console.warn("KSP fetch attempt failed", e);
+      }
+    }
+    throw (
+      lastErr ||
+      new Error(
+        "לא ניתן להתחבר ל-KSP. יש לפרוס את שרת ה-API (Cloudflare Worker) — ראה README."
+      )
+    );
   }
 
   async function searchProducts(query, page) {
@@ -626,12 +673,27 @@
     }
 
     if (u.pathname === "/api/health") {
+      const apiProxy = getApiProxy();
+      if (apiProxy) {
+        try {
+          const r = await fetch(`${apiProxy}/health`, {
+            headers: { Accept: "application/json" },
+          });
+          if (!r.ok) throw new Error("proxy down");
+        } catch {
+          return {
+            status: "error",
+            message: "שרת API לא זמין — פרוס מחדש את ה-Worker",
+            apiProxy,
+          };
+        }
+      }
       return {
         status: "ok",
         name: "ksp-deals",
         version: "1.0.0",
         mode: "client",
-        corsProxy: Boolean(getCorsProxy()),
+        apiProxy: apiProxy || null,
       };
     }
 

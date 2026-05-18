@@ -642,12 +642,17 @@ async function checkHealth() {
   const dot = document.getElementById("statusDot");
   const text = document.getElementById("statusText");
   try {
-    await api("/api/health");
+    const h = await api("/api/health");
+    if (h.status === "error") {
+      dot.classList.add("offline");
+      text.textContent = h.message || "שרת API לא זמין";
+      return;
+    }
     dot.classList.remove("offline");
-    text.textContent = "מחובר ל-KSP";
+    text.textContent = h.apiProxy ? "מחובר ל-KSP" : "מחובר (מצב גיבוי)";
   } catch {
     dot.classList.add("offline");
-    text.textContent = "בעיית חיבור ל-KSP";
+    text.textContent = "בעיית חיבור — נדרש שרת API";
   }
 }
 

@@ -26,13 +26,13 @@ jobs:
 
       - name: Build site
         env:
-          CORS_PROXY: ${{ vars.CORS_PROXY }}
+          KSP_API_PROXY: ${{ vars.KSP_API_PROXY }}
         run: |
-          PROXY="${CORS_PROXY}"
-          if [ -z "$PROXY" ]; then
-            PROXY="https://api.allorigins.win/raw?url="
+          API="${KSP_API_PROXY}"
+          if [ -z "$API" ]; then
+            API="https://ksp-api-proxy.YMTzioni.workers.dev"
           fi
-          printf 'window.__KSP_CONFIG__ = {\n  mode: "client",\n  corsProxy: "%s",\n};\n' "$PROXY" > config.js
+          printf 'window.__KSP_CONFIG__ = {\n  mode: "client",\n  apiProxy: "%s",\n};\n' "$API" > config.js
           mkdir -p _site
           cp index.html config.js .nojekyll _site/
           cp -r css js _site/
