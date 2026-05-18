@@ -1,0 +1,263 @@
+.toolbar {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+  gap: 0.6rem;
+  margin-bottom: 1rem;
+  padding: 0.85rem;
+  background: var(--bg);
+  border-radius: 10px;
+  border: 1px solid var(--border);
+}
+
+.toolbar label.field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: var(--muted);
+}
+
+.toolbar input,
+.toolbar select {
+  padding: 0.5rem 0.6rem;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  font-family: inherit;
+  font-size: 0.88rem;
+}
+
+.toolbar-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  align-items: flex-end;
+}
+
+.toolbar-actions .btn {
+  padding: 0.5rem 0.75rem;
+  font-size: 0.82rem;
+}
+
+.view-toggle .btn.active {
+  background: var(--ksp-red);
+  color: #fff;
+  border-color: var(--ksp-red);
+}
+
+.results-table-wrap {
+  overflow-x: auto;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+}
+
+.results-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.85rem;
+}
+
+.results-table th,
+.results-table td {
+  padding: 0.6rem 0.75rem;
+  border-bottom: 1px solid var(--border);
+  text-align: right;
+}
+
+.results-table th {
+  background: var(--bg);
+  font-weight: 700;
+  position: sticky;
+  top: 0;
+}
+
+.results-table tr:hover td {
+  background: #fafafa;
+}
+
+.results-table .thumb {
+  width: 48px;
+  height: 48px;
+  object-fit: contain;
+}
+
+.analytics-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+  gap: 0.65rem;
+  margin-bottom: 1rem;
+}
+
+.stat-card {
+  background: var(--yaniv-soft);
+  border: 1px solid #fcd34d;
+  border-radius: 10px;
+  padding: 0.65rem 0.75rem;
+  text-align: center;
+}
+
+.stat-card .val {
+  font-size: 1.35rem;
+  font-weight: 800;
+  color: var(--yaniv-gold-dark);
+}
+
+.stat-card .lbl {
+  font-size: 0.72rem;
+  color: #92400e;
+}
+
+.compare-bar {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  background: var(--surface);
+  border-top: 2px solid var(--ksp-red);
+  padding: 0.75rem 1rem;
+  box-shadow: 0 -4px 20px rgba(0, 0, 0, 0.1);
+  z-index: 100;
+  display: none;
+  align-items: center;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+}
+
+.compare-bar.visible {
+  display: flex;
+}
+
+.compare-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  flex: 1;
+}
+
+.compare-chip {
+  background: var(--ksp-red-soft);
+  color: var(--ksp-red);
+  padding: 0.3rem 0.6rem;
+  border-radius: 8px;
+  font-size: 0.8rem;
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.compare-chip button {
+  border: none;
+  background: none;
+  cursor: pointer;
+  font-size: 1rem;
+  line-height: 1;
+  color: inherit;
+}
+
+.investigate-box {
+  background: linear-gradient(180deg, #f0f9ff 0%, var(--surface) 100%);
+  border: 1px solid #bae6fd;
+  border-radius: 12px;
+  padding: 1rem;
+  margin-top: 1rem;
+}
+
+.insight-list {
+  list-style: none;
+  margin: 0.75rem 0;
+}
+
+.insight-list li {
+  padding: 0.4rem 0;
+  padding-right: 1rem;
+  position: relative;
+  font-size: 0.9rem;
+}
+
+.insight-list li::before {
+  content: "◆";
+  position: absolute;
+  right: 0;
+  color: var(--ksp-red);
+  font-size: 0.6rem;
+  top: 0.55rem;
+}
+
+.tier-bar {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  margin: 0.75rem 0;
+}
+
+.tier-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0.45rem 0.65rem;
+  background: var(--bg);
+  border-radius: 8px;
+  font-size: 0.88rem;
+}
+
+.tier-row.best {
+  background: #ecfdf5;
+  border: 1px solid #6ee7b7;
+  font-weight: 600;
+}
+
+.checkbox-label {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.85rem;
+  cursor: pointer;
+}
+
+.card-compare-add {
+  font-size: 0.75rem;
+  padding: 0.35rem 0.5rem;
+}
+
+.hidden { display: none !important; }
+
+body { padding-bottom: 5rem; }
+
+.api-settings {
+  margin-top: 1rem;
+  padding: 0.75rem 1rem;
+  background: rgba(255, 255, 255, 0.12);
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  border-radius: 10px;
+}
+
+.api-settings label {
+  display: block;
+  font-size: 0.82rem;
+  margin-bottom: 0.4rem;
+}
+
+.api-settings-row {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.api-settings-row input {
+  flex: 1;
+  padding: 0.5rem 0.65rem;
+  border-radius: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.35);
+  font-family: inherit;
+}
+
+.api-hint {
+  font-size: 0.78rem;
+  opacity: 0.9;
+  margin-top: 0.45rem;
+}
+
+.api-settings.hidden { display: none; }
+
+.card-actions {
+  flex-wrap: wrap;
+}

@@ -1,6 +1,10 @@
 {
   "name": "ksp-mcp",
   "main": "src/index.ts",
+  "assets": {
+    "directory": "./public",
+    "binding": "ASSETS"
+  },
   "compatibility_date": "2025-04-01",
   "compatibility_flags": [
     "nodejs_compat"

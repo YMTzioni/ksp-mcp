@@ -1,0 +1,243 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+  <meta charset="UTF-8" />
+  <meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>KSP MCP — ממשק תפעול</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Heebo:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="css/main.css" />
+  <link rel="stylesheet" href="css/extras.css" />
+</head>
+<body>
+  <div class="app">
+    <header>
+      <h1>KSP MCP — ממשק תפעול</h1>
+      <p>חיפוש מוצרים ופרטי מוצר מ-KSP.co.il דרך שרת MCP המקומי</p>
+      <div class="status-row">
+        <span class="badge" id="serverBadge">
+          <span class="dot" id="statusDot"></span>
+          <span id="statusText">בודק חיבור...</span>
+        </span>
+        <span class="badge" id="baseUrlBadge"></span>
+      </div>
+      <div class="api-settings" id="apiSettings">
+        <label for="apiBaseInput">כתובת שרת API (Cloudflare Worker)</label>
+        <div class="api-settings-row">
+          <input type="url" id="apiBaseInput" dir="ltr" placeholder="https://ksp-mcp.xxx.workers.dev" />
+          <button type="button" class="btn btn-secondary" id="apiSaveBtn">שמור</button>
+        </div>
+        <p class="api-hint">ב-GitHub Pages נדרש שרת API נפרד. אחרי פריסת Worker — הדבק כאן את הכתובת.</p>
+      </div>
+    </header>
+
+    <div class="tabs">
+      <button class="tab active" data-tab="search">חיפוש</button>
+      <button class="tab tab-yaniv" data-tab="yaniv">יניב</button>
+      <button class="tab" data-tab="investigate">תחקור</button>
+      <button class="tab" data-tab="product">פרטים</button>
+    </div>
+
+    <section class="panel active" id="panel-search">
+      <div class="quick-tags" id="quickTags">
+        <button class="quick-tag" data-q="אייפון">אייפון</button>
+        <button class="quick-tag" data-q="מקלדת">מקלדת</button>
+        <button class="quick-tag" data-q="מסך">מסך</button>
+        <button class="quick-tag" data-q="אוזניות">אוזניות</button>
+        <button class="quick-tag" data-q="מחשב נייד">מחשב נייד</button>
+      </div>
+
+      <form class="search-bar" id="searchForm">
+        <input type="search" id="searchInput" placeholder="חפש מוצר... (עברית או אנגלית)" autocomplete="off" />
+        <button type="submit" class="btn btn-primary" id="searchBtn">חיפוש</button>
+      </form>
+
+      <div class="toolbar" id="searchToolbar">
+        <label class="field">מיון
+          <select id="searchSort">
+            <option value="price">מחיר</option>
+            <option value="discount">הנחה %</option>
+            <option value="savings">חיסכון</option>
+            <option value="name">שם</option>
+            <option value="brand">מותג</option>
+          </select>
+        </label>
+        <label class="field">כיוון
+          <select id="searchDir">
+            <option value="asc">עולה</option>
+            <option value="desc">יורד</option>
+          </select>
+        </label>
+        <label class="field">מחיר מינ׳
+          <input type="number" id="searchMinPrice" placeholder="0" min="0" />
+        </label>
+        <label class="field">מחיר מקס׳
+          <input type="number" id="searchMaxPrice" placeholder="∞" min="0" />
+        </label>
+        <label class="field">הנחה מינ׳ %
+          <input type="number" id="searchMinDisc" placeholder="0" min="0" max="100" />
+        </label>
+        <label class="field">מותג
+          <input type="text" id="searchBrand" placeholder="Samsung..." />
+        </label>
+        <label class="field">טקסט חופשי
+          <input type="text" id="searchText" placeholder="סינון בתוצאות..." />
+        </label>
+        <label class="field checkbox-label">
+          <input type="checkbox" id="searchInStock" /> במלאי בלבד
+        </label>
+        <div class="toolbar-actions">
+          <button type="button" class="btn btn-secondary" id="searchApply">החל סינון</button>
+          <span class="view-toggle">
+            <button type="button" class="btn btn-secondary active" id="searchViewGrid">כרטיסים</button>
+            <button type="button" class="btn btn-secondary" id="searchViewTable">טבלה</button>
+          </span>
+        </div>
+      </div>
+
+      <div class="meta" id="searchMeta" style="display:none">
+        <span>נמצאו <strong id="totalCount">0</strong> תוצאות</span>
+        <span id="searchFilteredCount"></span>
+        <span id="priceRange"></span>
+        <div class="pagination">
+          <button class="btn btn-secondary" id="prevPage" disabled>הקודם</button>
+          <span>עמוד <strong id="pageNum">1</strong></span>
+          <button class="btn btn-secondary" id="nextPage" disabled>הבא</button>
+        </div>
+      </div>
+
+      <div id="searchResults"></div>
+    </section>
+
+    <section class="panel" id="panel-yaniv">
+      <div class="yaniv-hero">
+        <h2>קטגוריית יניב — ציד מבצעים</h2>
+        <p>סורק אוטומטית מציאונים, חיסול מלאי, הריסת מחירים, outlet, תצוגה, הנחות מועדון ועוד — ומדרג לפי ציון מבצע.</p>
+      </div>
+
+      <div class="yaniv-controls">
+        <div>
+          <label for="yanivPages">עמודים לכל קטגוריית חיפוש</label>
+          <input type="range" id="yanivPages" min="1" max="10" value="5" />
+          <output id="yanivPagesOut">5</output>
+        </div>
+        <div>
+          <label for="yanivMinScore">ציון מינימלי</label>
+          <input type="range" id="yanivMinScore" min="10" max="60" value="18" />
+          <output id="yanivMinScoreOut">18</output>
+        </div>
+        <div style="display:flex;align-items:flex-end;gap:0.5rem">
+          <button type="button" class="btn btn-yaniv" id="yanivScanBtn" style="flex:1">התחל סריקה</button>
+          <button type="button" class="btn btn-secondary" id="yanivStopBtn" disabled>עצור</button>
+        </div>
+      </div>
+
+      <div class="progress-wrap" id="yanivProgress">
+        <div class="progress-bar"><div class="progress-fill" id="yanivProgressFill"></div></div>
+        <p class="progress-text" id="yanivProgressText">מתכונן...</p>
+      </div>
+
+      <div class="toolbar" id="yanivToolbar">
+        <label class="field">מיון
+          <select id="yanivSort">
+            <option value="score" selected>ציון יניב</option>
+            <option value="price">מחיר</option>
+            <option value="discount">הנחה %</option>
+            <option value="savings">חיסכון</option>
+            <option value="name">שם</option>
+            <option value="brand">מותג</option>
+          </select>
+        </label>
+        <label class="field">כיוון
+          <select id="yanivDir">
+            <option value="desc" selected>יורד</option>
+            <option value="asc">עולה</option>
+          </select>
+        </label>
+        <label class="field">סוג מבצע
+          <select id="yanivDealType"><option value="הכל">הכל</option></select>
+        </label>
+        <label class="field">מחיר מינ׳
+          <input type="number" id="yanivMinPrice" min="0" />
+        </label>
+        <label class="field">מחיר מקס׳
+          <input type="number" id="yanivMaxPrice" min="0" />
+        </label>
+        <label class="field">הנחה מינ׳ %
+          <input type="number" id="yanivMinDisc" min="0" max="100" />
+        </label>
+        <label class="field">מותג
+          <input type="text" id="yanivBrand" />
+        </label>
+        <label class="field">חיפוש
+          <input type="text" id="yanivText" placeholder="בתוך התוצאות..." />
+        </label>
+        <label class="field checkbox-label">
+          <input type="checkbox" id="yanivInStock" /> במלאי בלבד
+        </label>
+        <div class="toolbar-actions">
+          <button type="button" class="btn btn-secondary" id="yanivApply">החל</button>
+          <button type="button" class="btn btn-secondary" id="yanivExport">ייצוא CSV</button>
+          <button type="button" class="btn btn-secondary" id="yanivLoadSaved">טען סריקה אחרונה</button>
+          <button type="button" class="btn btn-secondary active" id="yanivViewGrid">כרטיסים</button>
+          <button type="button" class="btn btn-secondary" id="yanivViewTable">טבלה</button>
+        </div>
+      </div>
+
+      <div class="yaniv-stats" id="yanivStats" style="display:none">
+        <span>נסרקו <strong id="yanivScanned">0</strong></span>
+        <span>סה״כ <strong id="yanivFound">0</strong></span>
+        <span>מוצגים <strong id="yanivShown">0</strong></span>
+        <span>מיון: <strong id="yanivSortLabel">ציון</strong></span>
+      </div>
+
+      <div id="yanivAnalytics"></div>
+      <div id="yanivResults"></div>
+    </section>
+
+    <section class="panel" id="panel-investigate">
+      <div class="yaniv-hero" style="background:linear-gradient(135deg,#eff6ff,#dbeafe);border-color:#93c5fd">
+        <h2 style="color:#1d4ed8">תחקור מוצר והשוואה</h2>
+        <p style="color:#1e40af">ניתוח מחירים, חיסכון מקסימלי, מוצרים דומים והשוואה בין עד 5 פריטים</p>
+      </div>
+      <form class="search-bar" id="investigateForm">
+        <input type="text" id="investigateUin" placeholder="UIN או קישור KSP" />
+        <button type="submit" class="btn btn-primary">חקור מוצר</button>
+      </form>
+      <div id="investigateResult"></div>
+    </section>
+
+    <section class="panel" id="panel-product">
+      <form id="productForm">
+        <div class="form-group">
+          <label for="uinInput">מזהה מוצר (UIN) או קישור KSP</label>
+          <input type="text" id="uinInput" placeholder="לדוגמה: 368086 או https://ksp.co.il/web/item/368086" />
+        </div>
+        <button type="submit" class="btn btn-primary">הצג פרטים</button>
+      </form>
+      <div id="productResult" style="margin-top:1rem"></div>
+    </section>
+
+    <footer>
+      <strong>נקודות קצה MCP (ל-Cursor / Claude):</strong>
+      <ul>
+        <li>SSE: <code id="sseUrl"></code></li>
+        <li>HTTP: <code id="mcpUrl"></code></li>
+        <li>API: <code>/api/search</code> · <code>/api/investigate</code> · <code>/api/compare</code> · <code>/api/yaniv/*</code></li>
+      </ul>
+    </footer>
+  </div>
+
+  <div class="compare-bar" id="compareBar">
+    <strong>השוואה:</strong>
+    <div class="compare-chips" id="compareChips"></div>
+    <button type="button" class="btn btn-primary" id="compareRunBtn">השווה</button>
+    <button type="button" class="btn btn-secondary" id="compareClearBtn">נקה</button>
+  </div>
+
+  <script src="config.js" charset="UTF-8"></script>
+  <script src="js/app.js" charset="UTF-8"></script>
+</body>
+</html>

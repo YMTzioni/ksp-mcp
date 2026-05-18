@@ -1,79 +1,210 @@
 import { McpAgent } from "agents/mcp";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
+import {
+  getProductDetail,
+  productDetailToText,
+  searchProducts,
+  searchResultToText,
+} from "./ksp";
+import {
+  analyzeYanivDeals,
+  enrichSearchItem,
+  filterSearchItems,
+  filterYanivDeals,
+  parseFilters,
+  sortSearchItems,
+  sortYanivDeals,
+  type SortDir,
+  type SortField,
+} from "./filters";
+import {
+  compareProducts,
+  investigateProduct,
+  investigationToText,
+} from "./investigate";
+import {
+  mergeYanivDeals,
+  yanivDealsToText,
+  yanivScanStep,
+  YANIV_QUERIES,
+  type YanivDeal,
+} from "./yaniv";
 
-const KSP_API = "https://ksp.co.il/m_action/api";
-const KSP_WEB = "https://ksp.co.il/web";
-
-const HEADERS: Record<string, string> = {
-  "User-Agent":
-    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
-  Accept: "application/json",
-  "Accept-Language": "he-IL,he;q=0.9,en-US;q=0.8,en;q=0.7",
-  Referer: `${KSP_WEB}/`,
-  Origin: "https://ksp.co.il",
+const CORS_HEADERS: Record<string, string> = {
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
+  "Access-Control-Allow-Headers": "Content-Type",
 };
 
-function formatPrice(price: number | null | undefined): string | null {
-  if (price == null) return null;
-  return `₪${Math.round(price).toLocaleString("en-US")}`;
+function withUtf8Charset(response: Response, contentType: string): Response {
+  const headers = new Headers(response.headers);
+  headers.set("Content-Type", contentType);
+  return new Response(response.body, {
+    status: response.status,
+    statusText: response.statusText,
+    headers,
+  });
 }
 
-interface Label {
-  msg: string;
+function jsonResponse(data: unknown, status = 200): Response {
+  return new Response(JSON.stringify(data), {
+    status,
+    headers: {
+      "Content-Type": "application/json; charset=utf-8",
+      ...CORS_HEADERS,
+    },
+  });
 }
 
-interface Payments {
-  max_num_payments_wo_interest?: number;
-  estimated_payment?: number;
-}
+async function handleApi(request: Request): Promise<Response | null> {
+  const url = new URL(request.url);
 
-interface ProductItem {
-  name: string;
-  uin: string;
-  price?: number;
-  min_price?: number;
-  brandName?: string;
-  labels?: Label[];
-  payments?: Payments;
-  description?: string;
-  img?: string;
-}
-
-function formatProduct(item: ProductItem, index: number): string {
-  const lines: string[] = [`${index}. **${item.name}**`];
-
-  lines.push(`   Price: ${formatPrice(item.price ?? null)}`);
-  if (item.min_price && item.min_price !== item.price) {
-    lines.push(`   Club price: ${formatPrice(item.min_price)}`);
+  if (request.method === "OPTIONS") {
+    return new Response(null, { status: 204, headers: CORS_HEADERS });
   }
 
-  if (item.brandName) {
-    lines.push(`   Brand: ${item.brandName}`);
+  if (request.method === "POST" && url.pathname === "/api/yaniv/analyze") {
+    const body = (await request.json().catch(() => ({}))) as {
+      deals?: YanivDeal[];
+    };
+    const deals = body.deals ?? [];
+    const filters = parseFilters(url.searchParams);
+    const filtered = filterYanivDeals(deals, filters);
+    const sort = (url.searchParams.get("sort") as SortField) || "score";
+    const dir = (url.searchParams.get("dir") as SortDir) || "desc";
+    const sorted = sortYanivDeals(filtered, sort, dir);
+    return jsonResponse({
+      analytics: analyzeYanivDeals(deals),
+      filtered: sorted,
+      count: sorted.length,
+      total: deals.length,
+    });
   }
 
-  const labels = item.labels || [];
-  if (labels.length > 0) {
-    lines.push(`   ${labels.map((l) => l.msg).join(" | ")}`);
+  if (request.method !== "GET") {
+    return jsonResponse({ error: "Method not allowed" }, 405);
   }
 
-  const payments = item.payments || {};
-  if (payments.max_num_payments_wo_interest) {
-    lines.push(
-      `   Payments: up to ${payments.max_num_payments_wo_interest} interest-free (est. ${formatPrice(payments.estimated_payment ?? null)}/mo)`
+  if (url.pathname === "/api/health") {
+    return jsonResponse({
+      status: "ok",
+      name: "ksp-mcp",
+      version: "0.2.0",
+      endpoints: {
+        gui: "/",
+        search: "/api/search?query=...&page=1",
+        product: "/api/product?uin=...",
+        yaniv: "/api/yaniv/config",
+        yanivScan: "/api/yaniv/scan-step?query=...&page=1",
+        sse: "/sse",
+        mcp: "/mcp",
+      },
+    });
+  }
+
+  if (url.pathname === "/api/yaniv/config") {
+    return jsonResponse({
+      name: "יניב",
+      description:
+        "סורק מוצרים ב-KSP וממליץ על מציאונים, חיסול מלאי, הריסת מחירים ועוד",
+      queries: YANIV_QUERIES,
+      dealTypes: [
+        "מציאון",
+        "חיסול מלאי",
+        "הריסת מחירים",
+        "מוצר תצוגה",
+        "יד שניה",
+        "מבצע מיוחד",
+        "מחיר מועדון",
+        "מחיר אילת",
+        "תשלומים מוזלים",
+      ],
+      defaults: { pagesPerQuery: 5, minScore: 18 },
+    });
+  }
+
+  if (url.pathname === "/api/yaniv/scan-step") {
+    const query = url.searchParams.get("query")?.trim();
+    if (!query) {
+      return jsonResponse({ error: "Missing query parameter" }, 400);
+    }
+    const queryLabel =
+      url.searchParams.get("label")?.trim() ||
+      YANIV_QUERIES.find((q) => q.query === query)?.label ||
+      query;
+    const page = Math.max(1, parseInt(url.searchParams.get("page") || "1", 10) || 1);
+    const minScore = Math.max(
+      0,
+      parseInt(url.searchParams.get("minScore") || "18", 10) || 18
     );
+    const result = await yanivScanStep(query, queryLabel, page, minScore);
+    return jsonResponse(result);
   }
 
-  if (item.description) {
-    lines.push(`   ${item.description}`);
+  if (url.pathname === "/api/search") {
+    const query = url.searchParams.get("query")?.trim();
+    if (!query) {
+      return jsonResponse({ error: "Missing query parameter" }, 400);
+    }
+    const page = Math.max(1, parseInt(url.searchParams.get("page") || "1", 10) || 1);
+    const result = await searchProducts(query, page);
+    if ("error" in result) {
+      return jsonResponse(result, result.status);
+    }
+
+    const filters = parseFilters(url.searchParams);
+    const sort = (url.searchParams.get("sort") as SortField) || "price";
+    const dir = (url.searchParams.get("dir") as SortDir) || "asc";
+    let items = result.items.map((i) => enrichSearchItem(i));
+    const pageTotal = items.length;
+    items = filterSearchItems(items, filters);
+    items = sortSearchItems(items, sort, dir);
+
+    return jsonResponse({
+      ...result,
+      items,
+      pageTotal,
+      filteredCount: items.length,
+      sort,
+      dir,
+    });
   }
 
-  lines.push(`   URL: ${KSP_WEB}/item/${item.uin}`);
-  if (item.img) {
-    lines.push(`   Image: ${item.img}`);
+  if (url.pathname === "/api/investigate") {
+    const uin = url.searchParams.get("uin")?.trim();
+    if (!uin) return jsonResponse({ error: "Missing uin parameter" }, 400);
+    const report = await investigateProduct(uin);
+    if ("error" in report) {
+      return jsonResponse(report, 400);
+    }
+    return jsonResponse(report);
   }
 
-  return lines.join("\n");
+  if (url.pathname === "/api/compare") {
+    const uins = url.searchParams.get("uins")?.trim();
+    if (!uins) return jsonResponse({ error: "Missing uins parameter" }, 400);
+    const list = uins.split(/[,;\s]+/).filter(Boolean);
+    const result = await compareProducts(list);
+    if ("error" in result) {
+      return jsonResponse(result, 400);
+    }
+    return jsonResponse(result);
+  }
+
+  if (url.pathname === "/api/product") {
+    const uin = url.searchParams.get("uin")?.trim();
+    if (!uin) {
+      return jsonResponse({ error: "Missing uin parameter" }, 400);
+    }
+    const result = await getProductDetail(uin);
+    if ("error" in result) {
+      return jsonResponse(result, result.status ?? 400);
+    }
+    return jsonResponse(result);
+  }
+
+  return null;
 }
 
 export class KspMCP extends McpAgent {
@@ -101,60 +232,23 @@ Returns product names, prices, descriptions, and links. Supports Hebrew and Engl
           .describe("Page number for pagination (default: 1, 12 items per page)"),
       },
       async ({ query, page }) => {
-        const params = new URLSearchParams({ search: query });
-        if (page > 1) params.set("page", String(page));
+        const result = await searchProducts(query, page);
 
-        const resp = await fetch(`${KSP_API}/category/?${params}`, {
-          headers: HEADERS,
-        });
-        if (!resp.ok) {
+        if ("error" in result) {
           return {
-            content: [
-              { type: "text" as const, text: `KSP API error: ${resp.status}` },
-            ],
+            content: [{ type: "text" as const, text: result.error }],
           };
         }
 
-        const json = (await resp.json()) as {
-          result: {
-            items?: ProductItem[];
-            products_total?: number;
-            minMax?: { min: number; max: number };
-            next?: number;
-          };
+        const startIndex = (page - 1) * 12 + 1;
+        return {
+          content: [
+            {
+              type: "text" as const,
+              text: searchResultToText(result, startIndex),
+            },
+          ],
         };
-        const result = json.result;
-        const items = result.items || [];
-
-        if (items.length === 0) {
-          return {
-            content: [
-              {
-                type: "text" as const,
-                text: `No products found for "${query}" on KSP.`,
-              },
-            ],
-          };
-        }
-
-        const productLines = items.map((item, i) =>
-          formatProduct(item, (page - 1) * 12 + i + 1)
-        );
-
-        let summary = `Found ${result.products_total} products for "${query}" on KSP (showing page ${page}):\n\n`;
-        summary += productLines.join("\n\n");
-
-        if (result.minMax) {
-          summary += `\n\n---\nPrice range: ${formatPrice(result.minMax.min)} – ${formatPrice(result.minMax.max)}`;
-        }
-
-        if (result.next && result.next > 0) {
-          summary += `\nMore results available — use page ${page + 1} to see next page.`;
-        }
-
-        summary += `\n\nSearch URL: ${KSP_WEB}/cat/?search=${query}`;
-
-        return { content: [{ type: "text" as const, text: summary }] };
       }
     );
 
@@ -169,150 +263,108 @@ Returns product names, prices, descriptions, and links. Supports Hebrew and Engl
           ),
       },
       async ({ uin }) => {
-        const match = uin.match(/\d+/);
-        if (!match) {
-          return {
-            content: [{ type: "text" as const, text: "Invalid product ID." }],
-          };
-        }
-        const productId = match[0];
+        const result = await getProductDetail(uin);
 
-        const resp = await fetch(`${KSP_API}/item/${productId}`, {
-          headers: HEADERS,
-        });
-        if (!resp.ok) {
+        if ("error" in result) {
           return {
-            content: [
-              { type: "text" as const, text: `KSP API error: ${resp.status}` },
-            ],
+            content: [{ type: "text" as const, text: result.error }],
           };
         }
 
-        const json = (await resp.json()) as {
-          result: {
-            data: {
-              name: string;
-              price: number;
-              min_price?: number;
-              eilatPrice?: number;
-              brandName?: string;
-              addToCart?: boolean;
-              smalldesc?: string;
-            };
-            products_options?: {
-              render?: {
-                tags?: Record<
-                  string,
-                  {
-                    name: string;
-                    items: { id: number; name: string }[];
-                  }
-                >;
-              };
-              variations?: {
-                tags: Record<string, string>;
-                data: { price?: number; bms_price?: number };
-              }[];
-            };
-            specification?: { name: string; value: string }[];
-            images?: (string | { url: string })[];
-            stock?: { name?: string; title?: string }[];
-            payments?: Payments;
-          };
+        return {
+          content: [
+            { type: "text" as const, text: productDetailToText(result) },
+          ],
         };
+      }
+    );
 
-        const r = json.result;
-        const d = r.data;
-        let text = `**${d.name}**\n\n`;
-        text += `Price: ${formatPrice(d.price)}\n`;
+    this.server.tool(
+      "yaniv_recommendations",
+      `Scan KSP.co.il for exceptional deals — Yaniv's category. Finds bargains like מציאון (treasure hunt), חיסול מלאי (clearance), הריסת מחירים, outlet, display items, club discounts, and Eilat prices. Returns scored recommendations.`,
+      {
+        pages_per_query: z
+          .number()
+          .int()
+          .min(1)
+          .max(15)
+          .default(3)
+          .describe("Pages to scan per search bucket (12 items each)"),
+        min_score: z
+          .number()
+          .int()
+          .min(0)
+          .max(100)
+          .default(18)
+          .describe("Minimum deal score (0-100)"),
+        limit: z
+          .number()
+          .int()
+          .min(1)
+          .max(50)
+          .default(20)
+          .describe("Max recommendations to return"),
+      },
+      async ({ pages_per_query, min_score, limit }) => {
+        const all = new Map<string, import("./yaniv").YanivDeal>();
 
-        if (d.min_price && d.min_price !== d.price) {
-          text += `Club price: ${formatPrice(d.min_price)}\n`;
-        }
-        if (d.eilatPrice) {
-          text += `Eilat (tax-free) price: ${formatPrice(d.eilatPrice)}\n`;
-        }
-
-        text += `Brand: ${d.brandName || "N/A"}\n`;
-        text += `In stock: ${d.addToCart ? "Yes" : "No"}\n`;
-
-        if (d.smalldesc) {
-          text += `\nDescription: ${d.smalldesc}\n`;
-        }
-
-        // Product variations
-        const options = r.products_options || {};
-        const render = options.render || {};
-        const tags = render.tags || {};
-
-        if (Object.keys(tags).length > 0) {
-          text += "\n**Options:**\n";
-          for (const tagGroup of Object.values(tags)) {
-            const optionNames = tagGroup.items.map((i) => i.name).join(", ");
-            text += `  ${tagGroup.name}: ${optionNames}\n`;
+        for (const q of YANIV_QUERIES) {
+          for (let page = 1; page <= pages_per_query; page++) {
+            const step = await yanivScanStep(q.query, q.label, page, min_score);
+            if (step.error) continue;
+            mergeYanivDeals(all, step.deals);
+            if (!step.hasNext) break;
           }
         }
 
-        const variations = options.variations || [];
-        if (variations.length > 1) {
-          text += "\n**Variations:**\n";
-          for (const v of variations) {
-            const varParts: string[] = [];
-            for (const [k, vId] of Object.entries(v.tags)) {
-              const tagGroup = tags[k];
-              if (tagGroup) {
-                const item = tagGroup.items.find(
-                  (i) => String(i.id) === String(vId)
-                );
-                if (item) {
-                  varParts.push(`${tagGroup.name}: ${item.name}`);
-                }
-              }
-            }
-            const varData = v.data || {};
-            let line = `  - ${varParts.join(", ")} → ${formatPrice(Math.round(varData.price || 0))}`;
-            if (varData.bms_price && varData.bms_price !== Math.round(varData.price || 0)) {
-              line += ` (club: ${formatPrice(varData.bms_price)})`;
-            }
-            text += line + "\n";
-          }
+        const deals = [...all.values()].sort((a, b) => b.score - a.score);
+        return {
+          content: [
+            {
+              type: "text" as const,
+              text: yanivDealsToText(deals, limit),
+            },
+          ],
+        };
+      }
+    );
+
+    this.server.tool(
+      "investigate_product",
+      "Deep price investigation for a KSP product: best price tier, savings, Yaniv score, insights, and similar products.",
+      {
+        uin: z.string().describe("Product UIN or KSP URL"),
+      },
+      async ({ uin }) => {
+        const report = await investigateProduct(uin);
+        if ("error" in report) {
+          return { content: [{ type: "text" as const, text: report.error }] };
         }
+        return {
+          content: [{ type: "text" as const, text: investigationToText(report) }],
+        };
+      }
+    );
 
-        // Specifications
-        const specs = r.specification || [];
-        if (specs.length > 0) {
-          text += "\n**Specifications:**\n";
-          for (const spec of specs) {
-            text += `  - ${spec.name}: ${spec.value}\n`;
-          }
+    this.server.tool(
+      "compare_products",
+      "Compare up to 5 KSP products side by side by price, stock, and Yaniv deal score.",
+      {
+        uins: z
+          .array(z.string())
+          .min(2)
+          .max(5)
+          .describe("Product UINs or URLs to compare"),
+      },
+      async ({ uins }) => {
+        const result = await compareProducts(uins);
+        if ("error" in result) {
+          return { content: [{ type: "text" as const, text: result.error }] };
         }
-
-        // Images
-        const images = r.images || [];
-        if (images.length > 0) {
-          text += "\n**Images:**\n";
-          for (const img of images.slice(0, 5)) {
-            text += `  ${typeof img === "string" ? img : img.url}\n`;
-          }
+        let text = "**השוואת מוצרים**\n\n";
+        for (const r of result.rows) {
+          text += `- **${r.name}** — ${r.bestLabel}: ₪${r.bestPrice} (ציון ${r.yanivScore}) ${r.inStock ? "במלאי" : "אזל"}\n`;
         }
-
-        // Stock / pickup
-        const stock = r.stock || [];
-        if (stock.length > 0) {
-          text += "\n**Available at branches:**\n";
-          for (const s of stock.slice(0, 5)) {
-            text += `  - ${s.name || s.title || JSON.stringify(s)}\n`;
-          }
-        }
-
-        // Payments
-        const payments = r.payments || {};
-        if (payments.max_num_payments_wo_interest) {
-          text += `\nPayment options: up to ${payments.max_num_payments_wo_interest} interest-free payments\n`;
-        }
-
-        text += `\nURL: ${KSP_WEB}/item/${productId}`;
-
         return { content: [{ type: "text" as const, text }] };
       }
     );
@@ -320,8 +372,11 @@ Returns product names, prices, descriptions, and links. Supports Hebrew and Engl
 }
 
 export default {
-  fetch(request: Request, env: Env, ctx: ExecutionContext) {
+  async fetch(request: Request, env: Env, ctx: ExecutionContext) {
     const url = new URL(request.url);
+
+    const apiResponse = await handleApi(request);
+    if (apiResponse) return apiResponse;
 
     if (url.pathname === "/sse" || url.pathname === "/sse/message") {
       return KspMCP.serveSSE("/sse").fetch(request, env, ctx);
@@ -331,23 +386,54 @@ export default {
       return KspMCP.serve("/mcp").fetch(request, env, ctx);
     }
 
-    if (url.pathname === "/") {
-      return new Response(
-        JSON.stringify({
-          name: "ksp-mcp",
-          description:
-            "MCP server for searching products on KSP.co.il",
-          endpoints: {
-            sse: "/sse",
-            mcp: "/mcp",
-          },
-        }),
-        {
-          headers: { "Content-Type": "application/json" },
-        }
-      );
+    if (
+      url.pathname === "/" ||
+      url.pathname === "/gui" ||
+      url.pathname === "/index.html" ||
+      url.pathname === "/favicon.ico"
+    ) {
+      if (url.pathname === "/favicon.ico") {
+        return new Response(null, { status: 204 });
+      }
+      const assetUrl = new URL("/index.html", request.url);
+      const assetRequest = new Request(assetUrl.toString(), request);
+      const assetResponse = await env.ASSETS.fetch(assetRequest);
+      if (assetResponse.status !== 404) {
+        return withUtf8Charset(assetResponse, "text/html; charset=utf-8");
+      }
+    }
+
+    if (
+      url.pathname.startsWith("/js/") ||
+      url.pathname.startsWith("/css/")
+    ) {
+      const assetResponse = await env.ASSETS.fetch(request);
+      if (assetResponse.status !== 404) {
+        const type = url.pathname.endsWith(".js")
+          ? "application/javascript; charset=utf-8"
+          : "text/css; charset=utf-8";
+        return withUtf8Charset(assetResponse, type);
+      }
+    }
+
+    if (url.pathname === "/info") {
+      return jsonResponse({
+        name: "ksp-mcp",
+        description: "MCP server for searching products on KSP.co.il",
+        endpoints: {
+          gui: "/",
+          search: "/api/search",
+          product: "/api/product",
+          sse: "/sse",
+          mcp: "/mcp",
+        },
+      });
     }
 
     return new Response("Not found", { status: 404 });
   },
 } satisfies ExportedHandler<Env>;
+
+interface Env {
+  ASSETS: Fetcher;
+}
