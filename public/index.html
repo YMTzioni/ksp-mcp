@@ -4,7 +4,7 @@
   <meta charset="UTF-8" />
   <meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>KSP MCP — ממשק תפעול</title>
+  <title>KSP — חיפוש ומבצעים</title>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Heebo:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
@@ -14,8 +14,8 @@
 <body>
   <div class="app">
     <header>
-      <h1>KSP MCP — ממשק תפעול</h1>
-      <p>חיפוש מוצרים ופרטי מוצר מ-KSP.co.il דרך שרת MCP המקומי</p>
+      <h1>KSP — חיפוש ומבצעים</h1>
+      <p>חיפוש, יניב, תחקור והשוואת מחירים מ-KSP.co.il — רץ ישירות בדפדפן (GitHub Pages)</p>
       <div class="status-row">
         <span class="badge" id="serverBadge">
           <span class="dot" id="statusDot"></span>
@@ -23,7 +23,7 @@
         </span>
         <span class="badge" id="baseUrlBadge"></span>
       </div>
-      <div class="api-settings" id="apiSettings">
+      <div class="api-settings hidden" id="apiSettings" hidden>
         <label for="apiBaseInput">כתובת שרת API (Cloudflare Worker)</label>
         <div class="api-settings-row">
           <input type="url" id="apiBaseInput" dir="ltr" placeholder="https://ksp-mcp.xxx.workers.dev" />
@@ -220,8 +220,8 @@
       <div id="productResult" style="margin-top:1rem"></div>
     </section>
 
-    <footer>
-      <strong>נקודות קצה MCP (ל-Cursor / Claude):</strong>
+    <footer id="mcpFooter">
+      <strong>נקודות קצה MCP (ל-Cursor / Claude — דורש שרת Worker מקומי):</strong>
       <ul>
         <li>SSE: <code id="sseUrl"></code></li>
         <li>HTTP: <code id="mcpUrl"></code></li>
@@ -238,6 +238,7 @@
   </div>
 
   <script src="config.js" charset="UTF-8"></script>
+  <script src="js/ksp-core.js" charset="UTF-8"></script>
   <script src="js/app.js" charset="UTF-8"></script>
 </body>
 </html>

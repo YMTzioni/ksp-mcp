@@ -1,18 +1,22 @@
 /* KSP MCP GUI */
 const STORAGE_API_KEY = "ksp-api-base";
 
+function useClientApi() {
+  return window.KspClient?.useClientApi?.() ?? false;
+}
+
 function isGitHubPages() {
-  return /github\.io$/i.test(window.location.hostname);
+  return window.KspClient?.isGitHubPages?.() ?? /github\.io$/i.test(window.location.hostname);
 }
 
 function getApiBase() {
+  if (useClientApi()) return "";
   const cfg = window.__KSP_CONFIG__ || {};
   const fromCfg = (cfg.apiBase || "").trim().replace(/\/$/, "");
   if (fromCfg) return fromCfg;
   const saved = (localStorage.getItem(STORAGE_API_KEY) || "").trim().replace(/\/$/, "");
   if (saved) return saved;
-  if (!isGitHubPages()) return window.location.origin;
-  return "";
+  return window.location.origin;
 }
 
 function apiUrl(path) {
@@ -39,6 +43,13 @@ function esc(s) {
 }
 
 async function api(path, opts) {
+  if (useClientApi()) {
+    try {
+      return await window.KspClient.api(path, opts);
+    } catch (e) {
+      throw new Error(e.message || "שגיאת API");
+    }
+  }
   const res = await fetch(apiUrl(path), opts);
   const data = await res.json().catch(() => ({}));
   if (!res.ok) throw new Error(data.error || `שגיאה ${res.status}`);
@@ -664,12 +675,12 @@ async function checkHealth() {
   const dot = document.getElementById("statusDot");
   const text = document.getElementById("statusText");
   try {
-    await api("/api/health");
+    const h = await api("/api/health");
     dot.classList.remove("offline");
-    text.textContent = "שרת פעיל";
+    text.textContent = h.mode === "client" ? "פעיל (דפדפן)" : "שרת פעיל";
   } catch {
     dot.classList.add("offline");
-    text.textContent = "שרת לא זמין";
+    text.textContent = useClientApi() ? "בעיית חיבור ל-KSP" : "שרת לא זמין";
   }
 }
 
@@ -690,37 +701,19 @@ function loadSavedYaniv() {
 
 function setupApiSettings() {
   const box = document.getElementById("apiSettings");
-  const input = document.getElementById("apiBaseInput");
-  const saveBtn = document.getElementById("apiSaveBtn");
-  if (!box || !input) return;
-
-  const cfg = window.__KSP_CONFIG__ || {};
-  input.value =
-    localStorage.getItem(STORAGE_API_KEY) ||
-    cfg.apiBase ||
-    (isGitHubPages() ? "" : window.location.origin);
-
-  if (isGitHubPages()) {
-    box.classList.remove("hidden");
-  } else {
-    box.classList.add("hidden");
-  }
-
-  saveBtn?.addEventListener("click", () => {
-    const v = input.value.trim().replace(/\/$/, "");
-    if (!v) {
-      localStorage.removeItem(STORAGE_API_KEY);
-    } else {
-      localStorage.setItem(STORAGE_API_KEY, v);
-    }
-    updateApiBadges();
-    checkHealth();
-  });
+  if (box) box.classList.add("hidden");
 }
 
 function updateApiBadges() {
-  const base = getApiBase() || "(לא הוגדר)";
   const badge = document.getElementById("baseUrlBadge");
+  const mcpFooter = document.getElementById("mcpFooter");
+  if (useClientApi()) {
+    if (badge) badge.textContent = "GitHub Pages · דפדפן";
+    if (mcpFooter) mcpFooter.classList.add("hidden");
+    return;
+  }
+  if (mcpFooter) mcpFooter.classList.remove("hidden");
+  const base = getApiBase() || "(לא הוגדר)";
   if (badge) badge.textContent = "API: " + base;
   const sse = document.getElementById("sseUrl");
   const mcp = document.getElementById("mcpUrl");

@@ -26,10 +26,18 @@ jobs:
 
       - name: Build Pages config
         env:
-          KSP_API_BASE: ${{ vars.KSP_API_BASE }}
+          CORS_PROXY: ${{ vars.CORS_PROXY }}
         run: |
-          API="${KSP_API_BASE}"
-          printf 'window.__KSP_CONFIG__ = {\n  apiBase: "%s",\n};\n' "$API" > public/config.js
+          PROXY="${CORS_PROXY}"
+          if [ -z "$PROXY" ]; then
+            PROXY="https://api.allorigins.win/raw?url="
+          fi
+          cat > public/config.js <<EOF
+          window.__KSP_CONFIG__ = {
+            mode: "client",
+            corsProxy: "${PROXY}",
+          };
+          EOF
 
       - name: Setup Pages
         uses: actions/configure-pages@v5

@@ -258,6 +258,8 @@ body { padding-bottom: 5rem; }
 
 .api-settings.hidden { display: none; }
 
+footer.hidden { display: none; }
+
 .card-actions {
   flex-wrap: wrap;
 }
