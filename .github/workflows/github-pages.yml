@@ -29,9 +29,6 @@ jobs:
           KSP_API_BASE: ${{ vars.KSP_API_BASE }}
         run: |
           API="${KSP_API_BASE}"
-          if [ -z "$API" ]; then
-            API="https://ksp-mcp.guymon92.workers.dev"
-          fi
           printf 'window.__KSP_CONFIG__ = {\n  apiBase: "%s",\n};\n' "$API" > public/config.js
 
       - name: Setup Pages
