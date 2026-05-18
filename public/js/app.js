@@ -700,8 +700,10 @@ function setupApiSettings() {
     cfg.apiBase ||
     (isGitHubPages() ? "" : window.location.origin);
 
-  if (isGitHubPages() || !cfg.apiBase) {
+  if (isGitHubPages()) {
     box.classList.remove("hidden");
+  } else {
+    box.classList.add("hidden");
   }
 
   saveBtn?.addEventListener("click", () => {
