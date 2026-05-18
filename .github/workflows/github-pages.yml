@@ -32,15 +32,12 @@ jobs:
           if [ -z "$PROXY" ]; then
             PROXY="https://api.allorigins.win/raw?url="
           fi
-          cat > public/config.js <<EOF
-          window.__KSP_CONFIG__ = {
-            mode: "client",
-            corsProxy: "${PROXY}",
-          };
-          EOF
+          printf 'window.__KSP_CONFIG__ = {\n  mode: "client",\n  corsProxy: "%s",\n};\n' "$PROXY" > public/config.js
 
       - name: Setup Pages
         uses: actions/configure-pages@v5
+        with:
+          enablement: true
 
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3

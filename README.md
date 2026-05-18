@@ -1,5 +1,7 @@
 # KSP MCP Server
 
+**ממשק אונליין (GitHub Pages):** [https://ymtzioni.github.io/ksp-mcp/](https://ymtzioni.github.io/ksp-mcp/) — חיפוש, יניב, תחקור והשוואה בדפדפן.
+
 An MCP (Model Context Protocol) server for searching and browsing products on [KSP.co.il](https://ksp.co.il) — one of Israel's largest electronics and retail stores.
 
 Deployed as a **Cloudflare Worker** — no local install required. Just connect the URL and start searching.
