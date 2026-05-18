@@ -24,7 +24,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Build Pages config
+      - name: Build site
         env:
           CORS_PROXY: ${{ vars.CORS_PROXY }}
         run: |
@@ -32,7 +32,10 @@ jobs:
           if [ -z "$PROXY" ]; then
             PROXY="https://api.allorigins.win/raw?url="
           fi
-          printf 'window.__KSP_CONFIG__ = {\n  mode: "client",\n  corsProxy: "%s",\n};\n' "$PROXY" > public/config.js
+          printf 'window.__KSP_CONFIG__ = {\n  mode: "client",\n  corsProxy: "%s",\n};\n' "$PROXY" > config.js
+          mkdir -p _site
+          cp index.html config.js .nojekyll _site/
+          cp -r css js _site/
 
       - name: Setup Pages
         uses: actions/configure-pages@v5
@@ -42,7 +45,7 @@ jobs:
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3
         with:
-          path: public
+          path: _site
 
       - name: Deploy to GitHub Pages
         id: deployment
